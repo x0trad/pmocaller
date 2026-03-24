@@ -151,10 +151,8 @@ export default function App() {
         barImageRef.current
       );
 
-      const link = document.createElement("a");
-      link.download = "panggilan-telefon.png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
+      const blob = await canvasToBlob(canvas);
+      await deliverExport(blob, "panggilan-telefon.png");
     } finally {
       setIsExporting(false);
     }
@@ -761,6 +759,60 @@ async function ensureImageReady(image) {
     image.addEventListener("load", resolve, { once: true });
     image.addEventListener("error", resolve, { once: true });
   });
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error("Failed to create PNG blob."));
+    }, "image/png");
+  });
+}
+
+async function deliverExport(blob, fileName) {
+  const file = new File([blob], fileName, { type: "image/png" });
+
+  if (navigator.canShare && navigator.share) {
+    try {
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: fileName
+        });
+        return;
+      }
+    } catch {
+      // Fall through to the regular browser download/open flow.
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  // iOS browsers often ignore the download attribute, so opening the blob
+  // gives the user a visible save/share path instead of failing silently.
+  setTimeout(() => {
+    if (isLikelyIOS()) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }, 150);
+}
+
+function isLikelyIOS() {
+  const userAgent = navigator.userAgent || "";
+  return /iPad|iPhone|iPod/.test(userAgent);
 }
 
 function createPlaceholderAvatar() {
