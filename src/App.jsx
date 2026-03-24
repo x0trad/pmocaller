@@ -135,26 +135,21 @@ export default function App() {
         ensureImageReady(avatarRef.current),
         ensureImageReady(barImageRef.current)
       ]);
-
-      const canvas = document.createElement("canvas");
-      canvas.width = STAGE_WIDTH;
-      canvas.height = STAGE_HEIGHT;
-      const ctx = canvas.getContext("2d");
-
-      drawBackground(ctx, backgroundRef.current);
-      drawCallGroup(
-        ctx,
-        layout.group,
-        selectedBarText,
-        form,
-        avatarRef.current,
-        barImageRef.current
-      );
-
-      const blob = await canvasToBlob(canvas);
-      await deliverExport(blob, "panggilan-telefon.png");
+      submitExportForm({
+        barTemplate: form.barTemplate,
+        callerName: form.callerName,
+        callerTitle: form.callerTitle,
+        cardTint: form.cardTint,
+        cardOpacity: form.cardOpacity,
+        cardOffsetX: form.cardOffsetX,
+        cardOffsetY: form.cardOffsetY,
+        backgroundSrc: form.backgroundSrc,
+        avatarSrc: form.avatarSrc,
+        groupX: layout.group.x,
+        groupY: layout.group.y
+      });
     } finally {
-      setIsExporting(false);
+      setTimeout(() => setIsExporting(false), 400);
     }
   };
 
@@ -761,58 +756,24 @@ async function ensureImageReady(image) {
   });
 }
 
-function canvasToBlob(canvas) {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) {
-        resolve(blob);
-        return;
-      }
-      reject(new Error("Failed to create PNG blob."));
-    }, "image/png");
+function submitExportForm(payload) {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = "/api/export";
+  form.target = "_blank";
+  form.style.display = "none";
+
+  Object.entries(payload).forEach(([key, value]) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = key;
+    input.value = String(value ?? "");
+    form.appendChild(input);
   });
-}
 
-async function deliverExport(blob, fileName) {
-  const file = new File([blob], fileName, { type: "image/png" });
-
-  if (navigator.canShare && navigator.share) {
-    try {
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: fileName
-        });
-        return;
-      }
-    } catch {
-      // Fall through to the regular browser download/open flow.
-    }
-  }
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.rel = "noopener";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  // iOS browsers often ignore the download attribute, so opening the blob
-  // gives the user a visible save/share path instead of failing silently.
-  setTimeout(() => {
-    if (isLikelyIOS()) {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
-
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-  }, 150);
-}
-
-function isLikelyIOS() {
-  const userAgent = navigator.userAgent || "";
-  return /iPad|iPhone|iPod/.test(userAgent);
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
 }
 
 function createPlaceholderAvatar() {
