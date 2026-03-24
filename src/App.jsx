@@ -3,7 +3,6 @@ import {
   Download,
   Grip,
   ImagePlus,
-  PhoneCall,
   RefreshCcw,
   UserRound
 } from "lucide-react";
@@ -17,6 +16,8 @@ import {
 } from "./components/ui/card";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
+import barBmSrc from "./assets/bar_bm.png";
+import barEngSrc from "./assets/bar_eng.png";
 
 const STAGE_WIDTH = 1350;
 const STAGE_HEIGHT = 900;
@@ -32,8 +33,14 @@ const initialLayout = {
 };
 
 const CALL_BAR_TEMPLATES = {
-  bm: "Panggilan Telefon",
-  eng: "Phone Call"
+  bm: {
+    label: "Panggilan Telefon",
+    src: barBmSrc
+  },
+  eng: {
+    label: "Phone Call",
+    src: barEngSrc
+  }
 };
 
 const defaultState = {
@@ -58,6 +65,7 @@ export default function App() {
   const stageRef = useRef(null);
   const backgroundRef = useRef(null);
   const avatarRef = useRef(null);
+  const barImageRef = useRef(null);
 
   const updateField = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -86,7 +94,8 @@ export default function App() {
     try {
       await Promise.all([
         ensureImageReady(backgroundRef.current),
-        ensureImageReady(avatarRef.current)
+        ensureImageReady(avatarRef.current),
+        ensureImageReady(barImageRef.current)
       ]);
 
       const canvas = document.createElement("canvas");
@@ -95,7 +104,14 @@ export default function App() {
       const ctx = canvas.getContext("2d");
 
       drawBackground(ctx, backgroundRef.current);
-      drawCallGroup(ctx, layout.group, selectedBarText, form, avatarRef.current);
+      drawCallGroup(
+        ctx,
+        layout.group,
+        selectedBarText,
+        form,
+        avatarRef.current,
+        barImageRef.current
+      );
 
       const link = document.createElement("a");
       link.download = "panggilan-telefon.png";
@@ -109,7 +125,7 @@ export default function App() {
   return (
     <main className="min-h-screen px-4 py-4 text-white sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 lg:flex-row lg:items-start">
-        <section className="order-2 flex-1 lg:order-1">
+        <section className="order-1 flex-1 lg:order-1">
           <Card className="overflow-hidden">
             <CardHeader className="border-b border-white/10 pb-4">
               <div className="flex items-center justify-between gap-3">
@@ -171,21 +187,23 @@ export default function App() {
                       }
                       stageRef={stageRef}
                       bounds={getCallGroupBounds(
-                        selectedBarText,
+                        form.barTemplate,
                         form.cardOffsetX,
                         form.cardOffsetY
                       )}
                     >
                       <div className="flex flex-col items-start">
                         <div
-                          className="inline-flex items-center gap-4 rounded-[22px] px-5 py-4 text-[32px] font-extrabold tracking-[-0.03em] text-white shadow-2xl"
-                          style={{
-                            backgroundColor: form.barColor,
-                            boxShadow: `0 18px 34px ${hexToRgba(form.barColor, 0.28)}`
-                          }}
+                          className="rounded-[22px] shadow-2xl"
+                        style={{ boxShadow: "0 18px 34px rgba(40, 200, 78, 0.28)" }}
                         >
-                          <PhoneCall className="h-10 w-10" strokeWidth={2.4} />
-                          <span>{selectedBarText}</span>
+                          <img
+                            ref={barImageRef}
+                            src={getBarTemplateAsset(form.barTemplate)}
+                            alt={selectedBarText}
+                            className="block h-auto w-full max-w-none"
+                            draggable="false"
+                          />
                         </div>
                         <div
                           className="relative flex items-center gap-[18px]"
@@ -232,7 +250,7 @@ export default function App() {
           </Card>
         </section>
 
-        <aside className="order-1 w-full shrink-0 lg:order-2 lg:max-w-sm">
+        <aside className="order-2 w-full shrink-0 lg:order-2 lg:max-w-sm">
           <div className="flex flex-col gap-4">
             <Card>
               <CardHeader>
@@ -355,15 +373,6 @@ export default function App() {
               title="Style"
               description="These controls affect both preview and export."
             >
-              <Field label="Bar color" htmlFor="barColor">
-                <Input
-                  id="barColor"
-                  type="color"
-                  value={form.barColor}
-                  className="h-12 p-1"
-                  onChange={(event) => updateField("barColor", event.target.value)}
-                />
-              </Field>
               <Field label="Card tint" htmlFor="cardTint">
                 <Input
                   id="cardTint"
@@ -538,26 +547,21 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function getBarMetrics(ctx, text) {
-  ctx.save();
-  ctx.font = "800 32px Inter, Segoe UI, sans-serif";
-  const content = text || CALL_BAR_TEMPLATES.bm;
-  const textWidth = ctx.measureText(content).width;
-  ctx.restore();
-
+function getBarMetrics(barImage, text) {
+  const content = text || CALL_BAR_TEMPLATES.bm.label;
   return {
     content,
-    width: 22 + 42 + 18 + textWidth + 26
+    width: barImage?.naturalWidth || barImage?.width || 387,
+    height: barImage?.naturalHeight || barImage?.height || CALL_BAR_HEIGHT
   };
 }
 
-function getEstimatedBarWidth(text) {
-  const content = text || CALL_BAR_TEMPLATES.bm;
-  return Math.max(320, 22 + 42 + 18 + content.length * 18 + 26);
+function getEstimatedBarWidth(template) {
+  return template === "eng" ? 343 : 387;
 }
 
-function getCallGroupBounds(text, cardOffsetX, cardOffsetY) {
-  const barWidth = getEstimatedBarWidth(text);
+function getCallGroupBounds(template, cardOffsetX, cardOffsetY) {
+  const barWidth = getEstimatedBarWidth(template);
   const minX = Math.min(0, cardOffsetX);
   const maxX = Math.max(barWidth, cardOffsetX + CALL_CARD_WIDTH);
 
@@ -590,43 +594,26 @@ function drawBackground(ctx, image) {
 }
 
 function drawCallGroup(ctx, position, barText, form, avatarImage) {
-  const barMetrics = getBarMetrics(ctx, barText);
+  const barMetrics = getBarMetrics(barImage, barText);
   const cardPosition = {
     x: position.x + form.cardOffsetX,
-    y: position.y + CALL_BAR_HEIGHT + form.cardOffsetY
+    y: position.y + barMetrics.height + form.cardOffsetY
   };
 
-  drawBar(ctx, position, barMetrics.content, form.barColor, barMetrics.width);
+  drawBar(ctx, position, barMetrics, barImage);
   drawCallerCard(ctx, cardPosition, form, avatarImage);
 }
 
-function drawBar(ctx, position, text, barColor, width = null) {
-  const barHeight = CALL_BAR_HEIGHT;
-  const radius = 22;
-  const paddingLeft = 22;
-  const iconSize = 42;
-  const gap = 18;
-  const paddingRight = 26;
+function drawBar(ctx, position, metrics, barImage) {
+  if (!barImage) {
+    return;
+  }
 
   ctx.save();
-  ctx.font = "800 32px Inter, Segoe UI, sans-serif";
-  const content = text || CALL_BAR_TEMPLATES.bm;
-  const measuredWidth =
-    width ?? paddingLeft + iconSize + gap + ctx.measureText(content).width + paddingRight;
-
-  roundRect(ctx, position.x, position.y, measuredWidth, barHeight, radius);
-  ctx.fillStyle = barColor;
-  ctx.shadowColor = hexToRgba(barColor, 0.28);
+  ctx.shadowColor = "rgba(40, 200, 78, 0.28)";
   ctx.shadowBlur = 28;
   ctx.shadowOffsetY = 12;
-  ctx.fill();
-
-  ctx.shadowColor = "transparent";
-  drawPhoneGlyph(ctx, position.x + paddingLeft, position.y + 17, iconSize);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.textBaseline = "middle";
-  ctx.fillText(content, position.x + paddingLeft + iconSize + gap, position.y + 40);
+  ctx.drawImage(barImage, position.x, position.y, metrics.width, metrics.height);
   ctx.restore();
 }
 
@@ -680,36 +667,6 @@ function drawSingleLineText(ctx, text, x, y, maxWidth) {
     finalText = `${finalText.slice(0, -2)}…`;
   }
   ctx.fillText(finalText, x, y);
-}
-
-function drawPhoneGlyph(ctx, x, y, size) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.strokeStyle = "#ffffff";
-  ctx.fillStyle = "#ffffff";
-  ctx.lineCap = "round";
-  ctx.lineWidth = 2.4;
-
-  ctx.beginPath();
-  ctx.moveTo(size * 0.63, size * 0.16);
-  ctx.quadraticCurveTo(size * 0.83, size * 0.18, size * 0.88, size * 0.38);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(size * 0.61, size * 0.03);
-  ctx.quadraticCurveTo(size * 0.97, size * 0.06, size, size * 0.42);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(size * 0.18, size * 0.16);
-  ctx.quadraticCurveTo(size * 0.15, size * 0.36, size * 0.33, size * 0.58);
-  ctx.quadraticCurveTo(size * 0.49, size * 0.78, size * 0.71, size * 0.82);
-  ctx.lineTo(size * 0.84, size * 0.68);
-  ctx.quadraticCurveTo(size * 0.65, size * 0.61, size * 0.55, size * 0.49);
-  ctx.quadraticCurveTo(size * 0.41, size * 0.37, size * 0.34, size * 0.19);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
 }
 
 function drawCoverImage(ctx, image, dx, dy, dWidth, dHeight) {
@@ -793,5 +750,9 @@ function createPlaceholderAvatar() {
 }
 
 function getBarTemplateText(template) {
-  return CALL_BAR_TEMPLATES[template] ?? CALL_BAR_TEMPLATES.bm;
+  return CALL_BAR_TEMPLATES[template]?.label ?? CALL_BAR_TEMPLATES.bm.label;
+}
+
+function getBarTemplateAsset(template) {
+  return CALL_BAR_TEMPLATES[template]?.src ?? CALL_BAR_TEMPLATES.bm.src;
 }
