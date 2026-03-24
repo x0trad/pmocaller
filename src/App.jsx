@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
   Grip,
@@ -21,9 +21,7 @@ import barEngSrc from "./assets/bar_eng.png";
 
 const STAGE_WIDTH = 1350;
 const STAGE_HEIGHT = 900;
-const MOBILE_PREVIEW_WIDTH = 390;
-const MOBILE_PREVIEW_SCALE = MOBILE_PREVIEW_WIDTH / STAGE_WIDTH;
-const MOBILE_PREVIEW_HEIGHT = STAGE_HEIGHT * MOBILE_PREVIEW_SCALE;
+const MOBILE_PREVIEW_MAX_WIDTH = 390;
 const CALL_BAR_HEIGHT = 76;
 const CALL_CARD_WIDTH = 600;
 const CALL_CARD_HEIGHT = 112;
@@ -60,12 +58,52 @@ export default function App() {
   const [form, setForm] = useState(defaultState);
   const [layout, setLayout] = useState(initialLayout);
   const [isExporting, setIsExporting] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(MOBILE_PREVIEW_MAX_WIDTH);
   const selectedBarText = getBarTemplateText(form.barTemplate);
 
+  const stageWrapRef = useRef(null);
   const stageRef = useRef(null);
   const backgroundRef = useRef(null);
   const avatarRef = useRef(null);
   const barImageRef = useRef(null);
+
+  useEffect(() => {
+    const element = stageWrapRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updatePreviewWidth = () => {
+      const nextWidth = Math.min(
+        MOBILE_PREVIEW_MAX_WIDTH,
+        Math.max(260, element.clientWidth)
+      );
+      setPreviewWidth(nextWidth);
+    };
+
+    updatePreviewWidth();
+
+    const observer = new ResizeObserver(updatePreviewWidth);
+    observer.observe(element);
+    window.addEventListener("resize", updatePreviewWidth);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updatePreviewWidth);
+    };
+  }, []);
+
+  const previewScale = previewWidth / STAGE_WIDTH;
+  const previewHeight = STAGE_HEIGHT * previewScale;
+  const stageStyles = useMemo(
+    () => ({
+      width: STAGE_WIDTH,
+      height: STAGE_HEIGHT,
+      transform: `scale(${previewScale})`,
+      transformOrigin: "top left"
+    }),
+    [previewScale]
+  );
 
   const updateField = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -131,11 +169,11 @@ export default function App() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-balance text-xl">
-                    Fixed mobile preview
+                    Mobile preview
                   </CardTitle>
                   <CardDescription>
-                    The preview stays at a fixed mobile size. Export still comes
-                    out at 1350 x 900.
+                    The preview scales to fit your phone screen cleanly. Export
+                    still comes out at 1350 x 900.
                   </CardDescription>
                 </div>
                 <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
@@ -145,10 +183,10 @@ export default function App() {
             </CardHeader>
             <CardContent className="p-3 sm:p-4">
               <div className="rounded-[28px] border border-white/10 bg-slate-950/60 p-3 shadow-inner shadow-black/20">
-                <div className="mx-auto w-[390px] max-w-full">
+                <div ref={stageWrapRef} className="mx-auto w-full max-w-[390px]">
                   <div
                     className="relative mx-auto overflow-hidden rounded-[32px] border border-white/10 bg-black/40 p-2 shadow-2xl shadow-black/40"
-                    style={{ width: MOBILE_PREVIEW_WIDTH }}
+                    style={{ width: previewWidth }}
                   >
                     <div
                       className="pointer-events-none absolute inset-x-1 top-1 z-20 mx-auto h-6 w-28 rounded-b-2xl bg-black/80"
@@ -156,93 +194,88 @@ export default function App() {
                     />
                     <div
                       className="relative mx-auto"
-                      style={{ height: MOBILE_PREVIEW_HEIGHT }}
+                      style={{ height: previewHeight }}
                     >
-                  <div
-                    ref={stageRef}
-                    className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-amber-800 via-slate-800 to-sky-900 select-none"
-                    style={{
-                      width: STAGE_WIDTH,
-                      height: STAGE_HEIGHT,
-                      transform: `scale(${MOBILE_PREVIEW_SCALE})`,
-                      transformOrigin: "top left"
-                    }}
-                  >
-                    {form.backgroundSrc ? (
-                      <img
-                        ref={backgroundRef}
-                        src={form.backgroundSrc}
-                        alt="Background"
-                        className="absolute inset-0 h-full w-full object-cover"
-                        draggable="false"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_20%),linear-gradient(160deg,rgba(10,25,48,0.72),rgba(10,25,48,0.18)),linear-gradient(120deg,#7a5132_0%,#253f66_100%)]" />
-                    )}
-
-                    <DraggableOverlay
-                      position={layout.group}
-                      onPositionChange={(next) =>
-                        setLayout((current) => ({ ...current, group: next }))
-                      }
-                      stageRef={stageRef}
-                      bounds={getCallGroupBounds(
-                        form.barTemplate,
-                        form.cardOffsetX,
-                        form.cardOffsetY
-                      )}
-                    >
-                      <div className="flex flex-col items-start">
-                        <div
-                          className="rounded-[22px] shadow-2xl"
-                        style={{ boxShadow: "0 18px 34px rgba(40, 200, 78, 0.28)" }}
-                        >
+                      <div
+                        ref={stageRef}
+                        className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-amber-800 via-slate-800 to-sky-900 select-none"
+                        style={stageStyles}
+                      >
+                        {form.backgroundSrc ? (
                           <img
-                            ref={barImageRef}
-                            src={getBarTemplateAsset(form.barTemplate)}
-                            alt={selectedBarText}
-                            className="block h-auto w-full max-w-none"
+                            ref={backgroundRef}
+                            src={form.backgroundSrc}
+                            alt="Background"
+                            className="absolute inset-0 h-full w-full object-cover"
                             draggable="false"
                           />
-                        </div>
-                        <div
-                          className="relative flex items-center gap-[18px]"
-                          style={{
-                            marginLeft: form.cardOffsetX,
-                            marginTop: form.cardOffsetY
-                          }}
+                        ) : (
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_20%),linear-gradient(160deg,rgba(10,25,48,0.72),rgba(10,25,48,0.18)),linear-gradient(120deg,#7a5132_0%,#253f66_100%)]" />
+                        )}
+
+                        <DraggableOverlay
+                          position={layout.group}
+                          onPositionChange={(next) =>
+                            setLayout((current) => ({ ...current, group: next }))
+                          }
+                          stageRef={stageRef}
+                          bounds={getCallGroupBounds(
+                            form.barTemplate,
+                            form.cardOffsetX,
+                            form.cardOffsetY
+                          )}
                         >
-                          <div className="relative h-[112px] w-[112px] overflow-hidden rounded-[24px] border-4 border-emerald-400/55 bg-slate-700 shadow-2xl">
-                            <img
-                              ref={avatarRef}
-                              src={form.avatarSrc}
-                              alt="Caller"
-                              className="h-full w-full object-cover"
-                              draggable="false"
-                            />
-                          </div>
-                          <div
-                            className="min-w-0 rounded-[24px] px-[34px] py-[22px] text-white shadow-2xl"
-                            style={{
-                              width: 470,
-                              background: `linear-gradient(135deg, ${hexToRgba(
-                                form.cardTint,
-                                Math.min(form.cardOpacity + 0.12, 1)
-                              )}, ${hexToRgba(form.cardTint, form.cardOpacity)})`
-                            }}
-                          >
-                            <div className="truncate text-[30px] leading-none font-extrabold tracking-[-0.04em]">
-                              {form.callerName || "Caller Name"}
+                          <div className="flex flex-col items-start">
+                            <div
+                              className="rounded-[22px] shadow-2xl"
+                              style={{ boxShadow: "0 18px 34px rgba(40, 200, 78, 0.28)" }}
+                            >
+                              <img
+                                ref={barImageRef}
+                                src={getBarTemplateAsset(form.barTemplate)}
+                                alt={selectedBarText}
+                                className="block h-auto w-full max-w-none"
+                                draggable="false"
+                              />
                             </div>
-                            <div className="mt-2 truncate text-lg text-white/90">
-                              {form.callerTitle || "Caller title"}
+                            <div
+                              className="relative flex items-center gap-[18px]"
+                              style={{
+                                marginLeft: form.cardOffsetX,
+                                marginTop: form.cardOffsetY
+                              }}
+                            >
+                              <div className="relative h-[112px] w-[112px] overflow-hidden rounded-[24px] border-4 border-emerald-400/55 bg-slate-700 shadow-2xl">
+                                <img
+                                  ref={avatarRef}
+                                  src={form.avatarSrc}
+                                  alt="Caller"
+                                  className="h-full w-full object-cover"
+                                  draggable="false"
+                                />
+                              </div>
+                              <div
+                                className="min-w-0 rounded-[24px] px-[34px] py-[22px] text-white shadow-2xl"
+                                style={{
+                                  width: 470,
+                                  background: `linear-gradient(135deg, ${hexToRgba(
+                                    form.cardTint,
+                                    Math.min(form.cardOpacity + 0.12, 1)
+                                  )}, ${hexToRgba(form.cardTint, form.cardOpacity)})`
+                                }}
+                              >
+                                <div className="truncate text-[30px] leading-none font-extrabold tracking-[-0.04em]">
+                                  {form.callerName || "Caller Name"}
+                                </div>
+                                <div className="mt-2 truncate text-lg text-white/90">
+                                  {form.callerTitle || "Caller title"}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        </DraggableOverlay>
                       </div>
-                    </DraggableOverlay>
-                  </div>
-                </div>
+                    </div>
                   </div>
                 </div>
               </div>
