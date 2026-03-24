@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Download,
   Grip,
@@ -20,6 +20,9 @@ import { Label } from "./components/ui/label";
 
 const STAGE_WIDTH = 1350;
 const STAGE_HEIGHT = 900;
+const MOBILE_PREVIEW_WIDTH = 390;
+const MOBILE_PREVIEW_SCALE = MOBILE_PREVIEW_WIDTH / STAGE_WIDTH;
+const MOBILE_PREVIEW_HEIGHT = STAGE_HEIGHT * MOBILE_PREVIEW_SCALE;
 const CALL_BAR_HEIGHT = 76;
 const CALL_CARD_WIDTH = 600;
 const CALL_CARD_HEIGHT = 112;
@@ -28,8 +31,13 @@ const initialLayout = {
   group: { x: 710, y: 625 }
 };
 
+const CALL_BAR_TEMPLATES = {
+  bm: "Panggilan Telefon",
+  eng: "Phone Call"
+};
+
 const defaultState = {
-  barText: "Panggilan Telefon",
+  barTemplate: "bm",
   callerName: "Christopher Luxon",
   callerTitle: "Perdana Menteri New Zealand",
   barColor: "#28c84e",
@@ -44,49 +52,12 @@ const defaultState = {
 export default function App() {
   const [form, setForm] = useState(defaultState);
   const [layout, setLayout] = useState(initialLayout);
-  const [scale, setScale] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
+  const selectedBarText = getBarTemplateText(form.barTemplate);
 
-  const stageWrapRef = useRef(null);
   const stageRef = useRef(null);
   const backgroundRef = useRef(null);
   const avatarRef = useRef(null);
-
-  useEffect(() => {
-    const element = stageWrapRef.current;
-    if (!element) {
-      return;
-    }
-
-    const updateScale = () => {
-      const availableWidth = element.clientWidth - 24;
-      const nextScale = Math.min(1, availableWidth / STAGE_WIDTH);
-      setScale(nextScale || 1);
-    };
-
-    updateScale();
-
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(element);
-    window.addEventListener("resize", updateScale);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", updateScale);
-    };
-  }, []);
-
-  const stageStyles = useMemo(
-    () => ({
-      width: STAGE_WIDTH,
-      height: STAGE_HEIGHT,
-      transform: `scale(${scale})`,
-      transformOrigin: "top left"
-    }),
-    [scale]
-  );
-
-  const scaledHeight = STAGE_HEIGHT * scale;
 
   const updateField = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -124,7 +95,7 @@ export default function App() {
       const ctx = canvas.getContext("2d");
 
       drawBackground(ctx, backgroundRef.current);
-      drawCallGroup(ctx, layout.group, form, avatarRef.current);
+      drawCallGroup(ctx, layout.group, selectedBarText, form, avatarRef.current);
 
       const link = document.createElement("a");
       link.download = "panggilan-telefon.png";
@@ -144,11 +115,11 @@ export default function App() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-balance text-xl">
-                    Mobile-first preview
+                    Fixed mobile preview
                   </CardTitle>
                   <CardDescription>
-                    Drag the overlays directly on the canvas. The exported file is
-                    always 1350 x 900.
+                    The preview stays at a fixed mobile size. Export still comes
+                    out at 1350 x 900.
                   </CardDescription>
                 </div>
                 <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
@@ -157,18 +128,29 @@ export default function App() {
               </div>
             </CardHeader>
             <CardContent className="p-3 sm:p-4">
-              <div
-                ref={stageWrapRef}
-                className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/60 p-3 shadow-inner shadow-black/20"
-              >
-                <div
-                  className="relative mx-auto"
-                  style={{ height: scaledHeight, maxWidth: STAGE_WIDTH * scale }}
-                >
+              <div className="rounded-[28px] border border-white/10 bg-slate-950/60 p-3 shadow-inner shadow-black/20">
+                <div className="mx-auto w-[390px] max-w-full">
+                  <div
+                    className="relative mx-auto overflow-hidden rounded-[32px] border border-white/10 bg-black/40 p-2 shadow-2xl shadow-black/40"
+                    style={{ width: MOBILE_PREVIEW_WIDTH }}
+                  >
+                    <div
+                      className="pointer-events-none absolute inset-x-1 top-1 z-20 mx-auto h-6 w-28 rounded-b-2xl bg-black/80"
+                      aria-hidden="true"
+                    />
+                    <div
+                      className="relative mx-auto"
+                      style={{ height: MOBILE_PREVIEW_HEIGHT }}
+                    >
                   <div
                     ref={stageRef}
                     className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-amber-800 via-slate-800 to-sky-900 select-none"
-                    style={stageStyles}
+                    style={{
+                      width: STAGE_WIDTH,
+                      height: STAGE_HEIGHT,
+                      transform: `scale(${MOBILE_PREVIEW_SCALE})`,
+                      transformOrigin: "top left"
+                    }}
                   >
                     {form.backgroundSrc ? (
                       <img
@@ -189,7 +171,7 @@ export default function App() {
                       }
                       stageRef={stageRef}
                       bounds={getCallGroupBounds(
-                        form.barText,
+                        selectedBarText,
                         form.cardOffsetX,
                         form.cardOffsetY
                       )}
@@ -203,7 +185,7 @@ export default function App() {
                           }}
                         >
                           <PhoneCall className="h-10 w-10" strokeWidth={2.4} />
-                          <span>{form.barText || "Panggilan Telefon"}</span>
+                          <span>{selectedBarText}</span>
                         </div>
                         <div
                           className="relative flex items-center gap-[18px]"
@@ -241,6 +223,8 @@ export default function App() {
                         </div>
                       </div>
                     </DraggableOverlay>
+                  </div>
+                </div>
                   </div>
                 </div>
               </div>
@@ -288,12 +272,26 @@ export default function App() {
               title="Copy"
               description="Keep this short so it stays clean on export."
             >
-              <Field label="Top bar text" htmlFor="barText">
-                <Input
-                  id="barText"
-                  value={form.barText}
-                  onChange={(event) => updateField("barText", event.target.value)}
-                />
+              <Field label="Bar template">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={form.barTemplate === "bm" ? "default" : "outline"}
+                    onClick={() => updateField("barTemplate", "bm")}
+                  >
+                    BM
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={form.barTemplate === "eng" ? "default" : "outline"}
+                    onClick={() => updateField("barTemplate", "eng")}
+                  >
+                    ENG
+                  </Button>
+                </div>
+                <p className="text-sm text-slate-400">
+                  Active text: <span className="text-slate-200">{selectedBarText}</span>
+                </p>
               </Field>
               <Field label="Caller name" htmlFor="callerName">
                 <Input
@@ -543,7 +541,7 @@ function hexToRgba(hex, alpha) {
 function getBarMetrics(ctx, text) {
   ctx.save();
   ctx.font = "800 32px Inter, Segoe UI, sans-serif";
-  const content = text || "Panggilan Telefon";
+  const content = text || CALL_BAR_TEMPLATES.bm;
   const textWidth = ctx.measureText(content).width;
   ctx.restore();
 
@@ -554,7 +552,7 @@ function getBarMetrics(ctx, text) {
 }
 
 function getEstimatedBarWidth(text) {
-  const content = text || "Panggilan Telefon";
+  const content = text || CALL_BAR_TEMPLATES.bm;
   return Math.max(320, 22 + 42 + 18 + content.length * 18 + 26);
 }
 
@@ -591,8 +589,8 @@ function drawBackground(ctx, image) {
   ctx.fillRect(0, 0, STAGE_WIDTH, STAGE_HEIGHT);
 }
 
-function drawCallGroup(ctx, position, form, avatarImage) {
-  const barMetrics = getBarMetrics(ctx, form.barText);
+function drawCallGroup(ctx, position, barText, form, avatarImage) {
+  const barMetrics = getBarMetrics(ctx, barText);
   const cardPosition = {
     x: position.x + form.cardOffsetX,
     y: position.y + CALL_BAR_HEIGHT + form.cardOffsetY
@@ -612,7 +610,7 @@ function drawBar(ctx, position, text, barColor, width = null) {
 
   ctx.save();
   ctx.font = "800 32px Inter, Segoe UI, sans-serif";
-  const content = text || "Panggilan Telefon";
+  const content = text || CALL_BAR_TEMPLATES.bm;
   const measuredWidth =
     width ?? paddingLeft + iconSize + gap + ctx.measureText(content).width + paddingRight;
 
@@ -792,4 +790,8 @@ function createPlaceholderAvatar() {
       </svg>
     `)
   );
+}
+
+function getBarTemplateText(template) {
+  return CALL_BAR_TEMPLATES[template] ?? CALL_BAR_TEMPLATES.bm;
 }
