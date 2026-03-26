@@ -16,8 +16,7 @@ import {
 } from "./components/ui/card";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
-import barBmSrc from "./assets/bar_bm.png";
-import barEngSrc from "./assets/bar_eng.png";
+import barIconSrc from "./assets/bar_icon.png";
 
 const STAGE_WIDTH = 1350;
 const STAGE_HEIGHT = 900;
@@ -30,19 +29,7 @@ const initialLayout = {
   group: { x: 710, y: 625 }
 };
 
-const CALL_BAR_TEMPLATES = {
-  bm: {
-    label: "Panggilan Telefon",
-    src: barBmSrc
-  },
-  eng: {
-    label: "Phone Call",
-    src: barEngSrc
-  }
-};
-
 const defaultState = {
-  barTemplate: "bm",
   callerName: "Christopher Luxon",
   callerTitle: "Perdana Menteri New Zealand",
   barColor: "#28c84e",
@@ -59,7 +46,6 @@ export default function App() {
   const [layout, setLayout] = useState(initialLayout);
   const [isExporting, setIsExporting] = useState(false);
   const [previewWidth, setPreviewWidth] = useState(MOBILE_PREVIEW_MAX_WIDTH);
-  const selectedBarText = getBarTemplateText(form.barTemplate);
 
   const stageWrapRef = useRef(null);
   const stageRef = useRef(null);
@@ -136,7 +122,6 @@ export default function App() {
         ensureImageReady(barImageRef.current)
       ]);
       submitExportForm({
-        barTemplate: form.barTemplate,
         callerName: form.callerName,
         callerTitle: form.callerTitle,
         cardTint: form.cardTint,
@@ -213,7 +198,6 @@ export default function App() {
                           }
                           stageRef={stageRef}
                           bounds={getCallGroupBounds(
-                            form.barTemplate,
                             form.cardOffsetX,
                             form.cardOffsetY
                           )}
@@ -225,8 +209,8 @@ export default function App() {
                             >
                               <img
                                 ref={barImageRef}
-                                src={getBarTemplateAsset(form.barTemplate)}
-                                alt={selectedBarText}
+                                src={barIconSrc}
+                                alt="Phone call icon"
                                 className="block h-auto w-full max-w-none"
                                 draggable="false"
                               />
@@ -316,26 +300,10 @@ export default function App() {
               title="Copy"
               description="Keep this short so it stays clean on export."
             >
-              <Field label="Bar template">
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant={form.barTemplate === "bm" ? "default" : "outline"}
-                    onClick={() => updateField("barTemplate", "bm")}
-                  >
-                    BM
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={form.barTemplate === "eng" ? "default" : "outline"}
-                    onClick={() => updateField("barTemplate", "eng")}
-                  >
-                    ENG
-                  </Button>
+              <Field label="Bar asset">
+                <div className="rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-300">
+                  Using `bar_icon.png`
                 </div>
-                <p className="text-sm text-slate-400">
-                  Active text: <span className="text-slate-200">{selectedBarText}</span>
-                </p>
               </Field>
               <Field label="Caller name" htmlFor="callerName">
                 <Input
@@ -573,21 +541,19 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function getBarMetrics(barImage, text) {
-  const content = text || CALL_BAR_TEMPLATES.bm.label;
+function getBarMetrics(barImage) {
   return {
-    content,
-    width: barImage?.naturalWidth || barImage?.width || 387,
+    width: barImage?.naturalWidth || barImage?.width || 84,
     height: barImage?.naturalHeight || barImage?.height || CALL_BAR_HEIGHT
   };
 }
 
-function getEstimatedBarWidth(template) {
-  return template === "eng" ? 343 : 387;
+function getEstimatedBarWidth() {
+  return 84;
 }
 
-function getCallGroupBounds(template, cardOffsetX, cardOffsetY) {
-  const barWidth = getEstimatedBarWidth(template);
+function getCallGroupBounds(cardOffsetX, cardOffsetY) {
+  const barWidth = getEstimatedBarWidth();
   const minX = Math.min(0, cardOffsetX);
   const maxX = Math.max(barWidth, cardOffsetX + CALL_CARD_WIDTH);
 
@@ -619,8 +585,8 @@ function drawBackground(ctx, image) {
   ctx.fillRect(0, 0, STAGE_WIDTH, STAGE_HEIGHT);
 }
 
-function drawCallGroup(ctx, position, barText, form, avatarImage) {
-  const barMetrics = getBarMetrics(barImage, barText);
+function drawCallGroup(ctx, position, form, avatarImage, barImage) {
+  const barMetrics = getBarMetrics(barImage);
   const cardPosition = {
     x: position.x + form.cardOffsetX,
     y: position.y + barMetrics.height + form.cardOffsetY
@@ -793,12 +759,4 @@ function createPlaceholderAvatar() {
       </svg>
     `)
   );
-}
-
-function getBarTemplateText(template) {
-  return CALL_BAR_TEMPLATES[template]?.label ?? CALL_BAR_TEMPLATES.bm.label;
-}
-
-function getBarTemplateAsset(template) {
-  return CALL_BAR_TEMPLATES[template]?.src ?? CALL_BAR_TEMPLATES.bm.src;
 }

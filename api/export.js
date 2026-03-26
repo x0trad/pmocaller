@@ -6,10 +6,7 @@ const STAGE_WIDTH = 1350;
 const STAGE_HEIGHT = 900;
 const CALL_BAR_HEIGHT = 76;
 
-const BAR_FILES = {
-  bm: "bar_bm.png",
-  eng: "bar_eng.png"
-};
+const BAR_FILE = "bar_icon.png";
 
 const placeholderAvatar =
   "data:image/svg+xml;charset=UTF-8," +
@@ -39,8 +36,7 @@ export default async function handler(req, res) {
     const params = new URLSearchParams(rawBody);
     const payload = normalizePayload(params);
 
-    const barFile = BAR_FILES[payload.barTemplate] || BAR_FILES.bm;
-    const barPath = path.join(process.cwd(), "src", "assets", barFile);
+    const barPath = path.join(process.cwd(), "src", "assets", BAR_FILE);
     const barBuffer = await fs.readFile(barPath);
     const barMeta = await sharp(barBuffer).metadata();
 
@@ -109,7 +105,6 @@ export default async function handler(req, res) {
 
 function normalizePayload(params) {
   return {
-    barTemplate: params.get("barTemplate") || "bm",
     callerName: params.get("callerName") || "Caller Name",
     callerTitle: params.get("callerTitle") || "Caller title",
     cardTint: params.get("cardTint") || "#081026",
